@@ -9,12 +9,15 @@ fn sdk_path(target: &str) -> Result<String, std::io::Error> {
 
     use std::process::Command;
 
+    let arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
     let sdk = if target.contains("apple-darwin") {
         "macosx"
-    } else if target.contains("apple-ios") {
-        "iphoneos"
     } else {
-        unreachable!();
+        match arch.as_str() {
+            "aarch64" | "armv7" | "armv7s" => "iphoneos",
+            "x86_64"  | "i386"             => "iphonesimulator",
+            _ => unreachable!()
+        }
     };
     let output = Command::new("xcrun")
         .args(&["--sdk", sdk, "--show-sdk-path"])
@@ -54,7 +57,13 @@ fn build(sdk_path: Option<&str>, target: &str) {
     #[cfg(feature = "core_audio")]
     {
         println!("cargo:rustc-link-lib=framework=CoreAudio");
-        headers.push("CoreAudio/CoreAudio.h");
+        if target.contains("apple-darwin") {
+            headers.push("CoreAudio/CoreAudio.h");
+        } else if target.contains("apple-ios") {
+            headers.push("CoreAudio/CoreAudioTypes.h");
+        } else {
+            unreachable!();
+        }
     }
 
     #[cfg(feature = "open_al")]
@@ -78,6 +87,14 @@ fn build(sdk_path: Option<&str>, target: &str) {
 
     // Begin building the bindgen params.
     let mut builder = bindgen::Builder::default();
+
+    // Replace clang aarch64 target with arm64
+    // See https://github.com/rust-lang/rust-bindgen/issues/1211
+    if target == "aarch64-apple-ios" {
+        builder = builder.clang_args(&["--target=arm64-apple-ios"])
+    } else {
+        builder = builder.clang_args(&[&format!("--target={}", target)]);
+    }
 
     builder = builder.size_t_is_usize(true);
 
