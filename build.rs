@@ -98,8 +98,6 @@ fn build(sdk_path: Option<&str>, target: &str) {
 
     builder = builder.size_t_is_usize(true);
 
-    builder = builder.clang_args(&[&format!("--target={}", target)]);
-
     if let Some(sdk_path) = sdk_path {
         builder = builder.clang_args(&["-isysroot", sdk_path]);
     }
